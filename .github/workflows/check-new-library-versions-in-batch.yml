@@ -16,7 +16,7 @@ concurrency:
 jobs:
   get-all-libraries:
     name: "📋 Get list of all supported libraries with newer versions"
-    if: github.repository == 'oracle/graalvm-reachability-metadata'
+    if: github.repository == 'vjovanov/graalvm-reachability-metadata'
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     permissions: write-all

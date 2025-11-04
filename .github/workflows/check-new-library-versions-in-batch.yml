@@ -144,6 +144,13 @@ jobs:
           FAILED_VERSION=$(grep "^FAILED:" test_results.txt | sed 's/FAILED://g')
           echo "failed_version=$FAILED_VERSION" >> $GITHUB_OUTPUT
 
+      - name: "🔒 Acquire update lock"
+        if: steps.runtests.outputs.successful_versions != ''
+        uses: ben-z/gh-action-mutex@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          branch: locks/update-tested-versions
+
       - name: "✔️ New library versions are supported"
         if: steps.runtests.outputs.successful_versions != ''
         run: |
@@ -161,6 +168,14 @@ jobs:
           git add -u
           git commit -m "Update tested versions for ${{ matrix.item.name }}"
           git push origin ${{ needs.get-all-libraries.outputs.branch }}
+
+      - name: "🔓 Release update lock"
+        if: always() && steps.runtests.outputs.successful_versions != ''
+        uses: ben-z/gh-action-mutex@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          branch: locks/update-tested-versions
+          release: true
 
       - name: "❗ New library version is not supported"
         if: steps.runtests.outputs.failed_version != ''

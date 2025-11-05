@@ -1,4 +1,10 @@
-#!/usr/bin/env bash
+#!/bin/bash
+
+# Copyright and related rights waived via CC0
+#
+# You should have received a copy of the CC0 legalcode along with this
+# work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
+
 # Purpose:
 #   Make Docker unable to access the network during tests by:
 #     1) Enabling the discard service on localhost:9 (TCP/UDP) via inetd to accept and immediately discard traffic.

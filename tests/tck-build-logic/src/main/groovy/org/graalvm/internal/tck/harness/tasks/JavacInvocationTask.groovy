@@ -24,7 +24,7 @@ abstract class JavacInvocationTask extends AbstractSubprojectTask {
     @Override
     @Input
     List<String> getCommand() {
-        return [tckExtension.repoRoot.get().asFile.toPath().resolve("gradlew").toString(), "compileJava"]
+        return [tckExtension.repoRoot.get().asFile.toPath().resolve("gradlew").toString(), "compileTestJava"]
     }
 
     @Override

@@ -198,16 +198,19 @@ jobs:
         run: |
           git config --local user.email "actions@github.com"
           git config --local user.name "Github Actions"
-          
+
           FAILED_VERSION="${{ steps.runtests.outputs.failed_version }}"
           REPO="${{ github.repository }}"
           TITLE="${{ env.ISSUE_TITLE_PREFIX }}${{ matrix.item.name }}:$FAILED_VERSION"
-          BODY="${{ env.ISSUE_BODY_PREFIX }}${{ steps.runtests.outputs.failure_type }}
+          BODY=$(cat <<EOF
+          ${{ env.ISSUE_BODY_PREFIX }}${{ steps.runtests.outputs.failure_type }}
           Runner log: ${{ steps.runtests.outputs.runner_log_url }}
           Last ${{ env.LOG_LINES }} lines of the log:
           ```console
           ${{ steps.runtests.outputs.log_tail }}
-          ```"
+          ```
+          EOF
+          )
 
           ISSUE_NUMBER=$(gh issue list --repo "$REPO" --state open --search "$TITLE" --json number,title --jq '.[] | select(.title == "'"$TITLE"'") | .number')
           if [ -n "$ISSUE_NUMBER" ]; then

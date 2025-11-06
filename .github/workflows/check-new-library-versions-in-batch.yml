@@ -139,12 +139,6 @@ jobs:
           # Extract runner log URL
           echo "runner_log_url=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_OUTPUT
 
-          # Extract log tail
-          echo "log_tail<<EOF" >> $GITHUB_OUTPUT
-          tail "-n${{ env.LOG_LINES }}" test_results.txt | head -c 900000 >> $GITHUB_OUTPUT
-          echo "" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
       - name: "✔️ New library versions are supported (with locks, waiting and retries)"
         if: steps.runtests.outputs.successful_versions != ''
         env:

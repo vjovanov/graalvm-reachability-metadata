@@ -61,7 +61,7 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       ISSUE_TITLE_PREFIX: "[Automation] Testing failed for library: "
       ISSUE_BODY_PREFIX: "Failure kind: "
-      LOG_LINES: "500"
+      LOG_LINES: "300"
     strategy:
       fail-fast: false
       matrix:
@@ -141,7 +141,7 @@ jobs:
 
           # Extract log tail
           echo "log_tail<<EOF" >> $GITHUB_OUTPUT
-          tail "-n${{ env.LOG_LINES }}" test_results.txt >> $GITHUB_OUTPUT
+          tail "-n${{ env.LOG_LINES }}" test_results.txt | head -c 900000 >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: "✔️ New library versions are supported (with locks, waiting and retries)"

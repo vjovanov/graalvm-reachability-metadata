@@ -136,8 +136,17 @@ jobs:
           # Extract failure type and failed version
           awk -F'[][]|:' '/^FAILED/ {print "failure_type="$2; print "failed_version="$4}' test_results.txt >> $GITHUB_OUTPUT
 
-          # Extract runner log URL
-          echo "runner_log_url=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_OUTPUT
+          # Extract runner log URL (job console)
+          CURRENT_JOB_NAME="🧪 ${{ matrix.item.name }}"
+          JOB_ID=$(gh run view "${{ github.run_id }}" --repo "${{ github.repository }}" --json jobs --jq '
+            .jobs[] | select(.name == env.CURRENT_JOB_NAME) | .id
+          ')
+          if [ -z "$JOB_ID" ]; then
+            # Fallback to run-level URL if job lookup fails
+            echo "runner_log_url=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_OUTPUT
+          else
+            echo "runner_log_url=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/job/$JOB_ID" >> $GITHUB_OUTPUT
+          fi
 
           # Extract log tail
           echo "log_tail<<EOF" >> $GITHUB_OUTPUT

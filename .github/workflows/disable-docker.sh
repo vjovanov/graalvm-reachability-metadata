@@ -28,4 +28,4 @@ sudo mkdir /etc/systemd/system/docker.service.d
 sudo bash -c "cat ${SCRIPT_DIR}/dockerd.service > /etc/systemd/system/docker.service.d/http-proxy.conf"
 sudo systemctl daemon-reload
 sudo systemctl restart docker
-log "Docker outbound network effectively disabled via proxy=http(s)://localhost:9 backed by inetd discard service."
+echo "Docker outbound network effectively disabled via proxy=http(s)://localhost:9 backed by inetd discard service."

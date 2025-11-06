@@ -136,8 +136,21 @@ jobs:
           # Extract failure type and failed version
           awk -F'[][]|:' '/^FAILED/ {print "failure_type="$2; print "failed_version="$4}' test_results.txt >> $GITHUB_OUTPUT
 
-          # Extract runner log URL
-          echo "runner_log_url=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_OUTPUT
+          # Extract runner log URL (job console)
+          CURRENT_JOB_NAME="🧪 Run '${{ env.TEST_COORDINATES }}' tests"
+          # Ensure gh can authenticate; gh prefers GH_TOKEN if set
+          export GH_TOKEN="${{ github.token }}"
+          JOB_ID=$(
+            gh run view "${{ github.run_id }}" --repo "${{ github.repository }}" --json jobs \
+              | jq -r --arg name "$CURRENT_JOB_NAME" '.jobs[] | select(.name == $name) | .databaseId' \
+              | head -n1
+          )
+          if [ -z "$JOB_ID" ] || [ "$JOB_ID" = "null" ]; then
+            # Fallback to run-level URL if job lookup fails
+            echo "runner_log_url=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_OUTPUT
+          else
+            echo "runner_log_url=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/job/$JOB_ID" >> $GITHUB_OUTPUT
+          fi
 
           # Extract log tail
           echo "log_tail<<EOF" >> $GITHUB_OUTPUT

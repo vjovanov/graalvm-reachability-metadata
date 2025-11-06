@@ -205,7 +205,9 @@ jobs:
           BODY="${{ env.ISSUE_BODY_PREFIX }}${{ steps.runtests.outputs.failure_type }}
           Runner log: ${{ steps.runtests.outputs.runner_log_url }}
           Last ${{ env.LOG_LINES }} lines of the log:
-          ${{ steps.runtests.outputs.log_tail }}"
+          ```console
+          ${{ steps.runtests.outputs.log_tail }}
+          ```"
 
           ISSUE_NUMBER=$(gh issue list --repo "$REPO" --state open --search "$TITLE" --json number,title --jq '.[] | select(.title == "'"$TITLE"'") | .number')
           if [ -n "$ISSUE_NUMBER" ]; then

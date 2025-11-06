@@ -125,13 +125,12 @@ jobs:
       - name: "🧪 Run '${{ env.TEST_COORDINATES }}' tests"
         id: runtests
         env:
-          # This provides the base job ID (e.g., "build")
           CURRENT_JOB_NAME: "🧪 Run '${{ env.TEST_COORDINATES }}' tests"
           # The 'gh' CLI requires a token to query the API
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           bash ./.github/workflows/run-consecutive-tests.sh "${{ env.TEST_COORDINATES }}" '${{ toJson(matrix.item.versions) }}' 2>&1 | tee test_results.txt || true
-
+          
           # Extract successful versions
           grep "^PASSED:" test_results.txt | sed 's/PASSED://g' > successful_versions.txt
           echo "successful_versions<<EOF" >> $GITHUB_OUTPUT
@@ -140,7 +139,9 @@ jobs:
 
           # Extract failure type and failed version
           awk -F'[][]|:' '/^FAILED/ {print "failure_type="$2; print "failed_version="$4}' test_results.txt >> $GITHUB_OUTPUT
-
+          
+          set -x 
+          JSON_OUTPUT=$(gh run view "${{ github.run_id }}" --repo "${{ github.repository }}" --json jobs)
           # Fetch the job URL
           JOB_ID=$(
             gh run view "${{ github.run_id }}" --repo "${{ github.repository }}" --json jobs \

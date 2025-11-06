@@ -142,6 +142,7 @@ jobs:
           # Extract log tail
           echo "log_tail<<EOF" >> $GITHUB_OUTPUT
           tail "-n${{ env.LOG_LINES }}" test_results.txt | head -c 900000 >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: "✔️ New library versions are supported (with locks, waiting and retries)"

@@ -58,6 +58,7 @@ jobs:
     needs: get-all-libraries
     permissions: write-all
     env:
+      CURRENT_JOB_NAME: "🧪 ${{ matrix.item.name }}"
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       ISSUE_TITLE_PREFIX: "[Automation] Testing failed for library: "
       ISSUE_BODY_PREFIX: "Failure kind: "
@@ -124,10 +125,6 @@ jobs:
 
       - name: "🧪 Run '${{ env.TEST_COORDINATES }}' tests"
         id: runtests
-        env:
-          CURRENT_JOB_NAME: "🧪 Run '${{ env.TEST_COORDINATES }}' tests"
-          # The 'gh' CLI requires a token to query the API
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           bash ./.github/workflows/run-consecutive-tests.sh "${{ env.TEST_COORDINATES }}" '${{ toJson(matrix.item.versions) }}' 2>&1 | tee test_results.txt || true
           

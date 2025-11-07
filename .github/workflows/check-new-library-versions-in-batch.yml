@@ -89,6 +89,7 @@ jobs:
       - name: "Check for existing failure issue and skip if found"
         id: check_existing_issue
         run: |
+          set -x
           GROUP_ID="$(echo "${{ matrix.item.name }}" | cut -d: -f1)"
           ARTIFACT_ID="$(echo "${{ matrix.item.name }}" | cut -d: -f2)"
           
@@ -96,6 +97,8 @@ jobs:
           FIRST_TESTING_VERSION="${VERSIONS[0]}"
           
           TITLE="${{ env.ISSUE_TITLE_PREFIX }}$GROUP_ID:$ARTIFACT_ID:$FIRST_TESTING_VERSION"
+          
+          echo $(gh issue list --repo "${{ github.repository }}" --state open --search "$TITLE" --json number,title,body)
           
           ISSUE_NUMBER=$(gh issue list --repo "${{ github.repository }}" --state open --search "$TITLE" --json number,title,body --jq \
             '.[] | select(.title == "'"$TITLE"'") | .number')

@@ -60,7 +60,7 @@ jobs:
     env:
       CURRENT_JOB_NAME: "🧪 ${{ matrix.item.name }}"
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      ISSUE_TITLE_PREFIX: "[Automation] Testing failed for library: "
+      ISSUE_TITLE_PREFIX: "[Automation] "
       ISSUE_BODY_PREFIX: "Failure kind: "
       LOG_LINES: "300"
     strategy:
@@ -86,26 +86,32 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           native-image-job-reports: 'true'
 
-      - name: "Check for existing failure issue and skip if found"
+      - name: "🔎 Check for an existing issue and skip further testing if found"
         id: check_existing_issue
         run: |
+          set -x
           GROUP_ID="$(echo "${{ matrix.item.name }}" | cut -d: -f1)"
           ARTIFACT_ID="$(echo "${{ matrix.item.name }}" | cut -d: -f2)"
           
           readarray -t VERSIONS < <(echo '${{ toJson(matrix.item.versions) }}' | jq -r '.[]')
           FIRST_TESTING_VERSION="${VERSIONS[0]}"
           
-          TITLE="${{ env.ISSUE_TITLE_PREFIX }}$GROUP_ID:$ARTIFACT_ID:$FIRST_TESTING_VERSION"
+          TITLE_PREFIX="${{ env.ISSUE_TITLE_PREFIX }}$GROUP_ID:$ARTIFACT_ID:$FIRST_TESTING_VERSION failed in"
           
-          ISSUE_NUMBER=$(gh issue list --repo "${{ github.repository }}" --state open --search "$TITLE" --json number,title,body --jq \
-            '.[] | select(.title == "'"$TITLE"'") | .number')
+          echo $(gh issue list --repo "${{ github.repository }}" --state open --search "in:title $TITLE_PREFIX" --json number,title)
+          
+          ISSUE_NUMBER=$(gh issue list --repo "${{ github.repository }}" --state open --search "in:title $TITLE_PREFIX" --json number,title --jq \
+            '.[] | select(.title | startswith("'"$TITLE_PREFIX"'")) | .number')
           
           if [[ -n "$ISSUE_NUMBER" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "There is no progress since last time this version was tested. Skipping further steps."
-            exit 0
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: "Extract test path and library version"
+        if: steps.check_existing_issue.outputs.skip != 'true'
         id: extract-params
         run: |
           LIBRARY_PATH=$(echo "${{ matrix.item.name }}" | sed 's/:/\//g')
@@ -118,12 +124,15 @@ jobs:
           echo "TEST_COORDINATES=$TEST_COORDINATES" >> ${GITHUB_ENV}
 
       - name: "Pull allowed docker images"
+        if: steps.check_existing_issue.outputs.skip != 'true'
         run: ./gradlew pullAllowedDockerImages --coordinates="${{ env.TEST_COORDINATES }}"
 
       - name: "Disable docker networking"
+        if: steps.check_existing_issue.outputs.skip != 'true'
         run: bash ./.github/workflows/disable-docker.sh
 
       - name: "🧪 Run '${{ env.TEST_COORDINATES }}' tests"
+        if: steps.check_existing_issue.outputs.skip != 'true'
         id: runtests
         run: |
           bash ./.github/workflows/run-consecutive-tests.sh "${{ env.TEST_COORDINATES }}" '${{ toJson(matrix.item.versions) }}' 2>&1 | tee test_results.txt || true
@@ -157,7 +166,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: "✔️ New library versions are supported (with locks, waiting and retries)"
-        if: steps.runtests.outputs.successful_versions != ''
+        if: steps.check_existing_issue.outputs.skip != 'true' && steps.runtests.outputs.successful_versions != ''
         env:
           BRANCH: ${{ needs.get-all-libraries.outputs.branch }}
         run: |
@@ -205,14 +214,14 @@ jobs:
           exit 1
 
       - name: "❗ New library version is not supported"
-        if: steps.runtests.outputs.failed_version != ''
+        if: steps.check_existing_issue.outputs.skip != 'true' && steps.runtests.outputs.failed_version != ''
         run: |
           git config --local user.email "actions@github.com"
           git config --local user.name "Github Actions"
 
           FAILED_VERSION="${{ steps.runtests.outputs.failed_version }}"
           REPO="${{ github.repository }}"
-          TITLE="${{ env.ISSUE_TITLE_PREFIX }}${{ matrix.item.name }}:$FAILED_VERSION"
+          TITLE="${{ env.ISSUE_TITLE_PREFIX }}${{ matrix.item.name }}:$FAILED_VERSION failed in '${{ steps.runtests.outputs.failure_type }}'"
 
           BODY_FILE=$(mktemp)
           # Use single-quoted here-doc to disable any shell expansion of log content
@@ -225,7 +234,7 @@ jobs:
           ```
           EOF
 
-          ISSUE_NUMBER=$(gh issue list --repo "$REPO" --state open --search "$TITLE" --json number,title --jq '.[] | select(.title == "'"$TITLE"'") | .number')
+          ISSUE_NUMBER=$(gh issue list --repo "$REPO" --state open --search "$TITLE" --json number,title --jq '.[] | select(.title | startswith("'"$TITLE"'")) | .number')
           if [ -n "$ISSUE_NUMBER" ]; then
             echo "Updating existing issue #$ISSUE_NUMBER"
             gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --body-file "$BODY_FILE"

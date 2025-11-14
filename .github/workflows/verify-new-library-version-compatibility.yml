@@ -16,7 +16,6 @@ concurrency:
 jobs:
   get-all-libraries:
     name: "📋 Get list of all supported libraries with newer versions"
-    if: github.repository == 'oracle/graalvm-reachability-metadata'
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     permissions: write-all
@@ -264,4 +263,9 @@ jobs:
           git config --local user.name "Github Actions"
           git fetch origin ${{ needs.get-all-libraries.outputs.branch }}
           git checkout ${{ needs.get-all-libraries.outputs.branch }}
-          gh pr create --title "[Automation] Update supported library versions $(date '+%Y-%m-%dT%H:%M')" --body "This pull request updates supported versions of the existing libraries in the repo"
+          gh pr create \
+            --title "[Automation] Update supported library versions $(date '+%Y-%m-%dT%H:%M')" \
+            --body "This pull request updates supported versions of the existing libraries in the repo" \
+            --reviewer "kimeta" \
+            --assignee "vjovanov" \
+            --label "library-add-new"

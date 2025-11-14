@@ -15,6 +15,7 @@ concurrency:
 
 jobs:
   get-all-libraries:
+    if: ${{ github.event_name != 'schedule' || github.repository == 'oracle/graalvm-reachability-metadata' }}
     name: "📋 Get list of all supported libraries with newer versions"
     runs-on: ubuntu-22.04
     timeout-minutes: 5
@@ -52,6 +53,7 @@ jobs:
           git push origin "${{ steps.set-branch-name.outputs.branch }}"
 
   test-all-metadata:
+    if: ${{ github.event_name != 'schedule' || github.repository == 'oracle/graalvm-reachability-metadata' }}
     name: "🧪 ${{ matrix.item.name }}"
     runs-on: ubuntu-22.04
     needs: get-all-libraries
@@ -254,7 +256,7 @@ jobs:
     permissions: write-all
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    if: ${{ always() }}
+    if: ${{ always() && (github.event_name != 'schedule' || github.repository == 'oracle/graalvm-reachability-metadata') }}
     needs:
       - get-all-libraries
       - test-all-metadata

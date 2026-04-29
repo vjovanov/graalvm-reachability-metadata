@@ -4,14 +4,8 @@ In the metadata repository, we accept contributions from 3rd parties.
 Per Oracle policies, we need to do a proper review of such code, including licensing and security checks.
 This document should serve as a guideline for reviewers to simplify and harmonize those reviews.
 
-## Checklist
-First step of every review is to verify the checklist from the pull request description.
-Once the contributor wants to open a pull request [this checklist](../.github/pull_request_template.md) will be automatically added to the pull request description.
-* If the PR does not contain such a list, it **should not be reviewed**
-* If any of the items is not checked, the reviewer should ask for an explanation from the contributor
-
 ## Copyright and licences
-As mentioned in the checklist, each pull request must **only** contain tests that are created by the author of the pull request.
+Each pull request must **only** contain tests that are created by the author of the pull request.
 **Every contribution that contains code from other sources must be rejected.**
 In order to check that the contribution has no copyright violation, following hints can be useful:
 * Unreasonably large contributions

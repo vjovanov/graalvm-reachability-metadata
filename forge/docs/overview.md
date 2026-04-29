@@ -176,7 +176,17 @@ Every workflow returns one of three statuses:
 
 The exit code is `0` for the first two and `1` for failure.
 
-## 10. Workflow Specifications
+## 10. Functional Requirements (FR-F)
+
+- **FR-F-1** Forge entry scripts accept `--coordinates`, `--strategy-name`, optional path overrides, and `--in-metadata-repo` for the bundled-checkout layout.
+- **FR-F-2** Either `GRAALVM_HOME` or `JAVA_HOME` must point to a GraalVM distribution; the entry script aligns both. Otherwise it exits with an error.
+- **FR-F-3** Agents never invoke Gradle directly. Build/test commands are issued by the workflow strategy via `agent.run_test_command(...)`.
+- **FR-F-4** All generated changes must live under `tests/src/<group>/<artifact>/<version>` and the matching `metadata/<group>/<artifact>/index.json` of the reachability repo.
+- **FR-F-5** Every successful run appends a metrics record validated against [schemas/evaluation_output_schema.json](../schemas/evaluation_output_schema.json).
+- **FR-F-6** The workflow returns one of three statuses — `RUN_STATUS_SUCCESS`, `SUCCESS_WITH_INTERVENTION_STATUS`, `RUN_STATUS_FAILURE` — mapping to exit codes 0, 0, 1 respectively. On failure the feature branch is reset to the scaffold checkpoint and no PR is opened.
+- **FR-F-7** The dynamic-access strategies require a coverage report to drive iteration. If a library has no dynamic access at all, they must fall back to `basic_iterative` automatically.
+
+## 11. Workflow Specifications
 
 - [Dynamic access workflow](dynamic-access-workflow.md) — guided test
   generation driven by the dynamic-access coverage report.

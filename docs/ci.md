@@ -187,6 +187,45 @@ version `SNAPSHOT`, deletes the previous snapshot release/tag when present,
 force-pushes a fresh `SNAPSHOT` tag, and marks the release as not GitHub's
 Latest release (§FS-repository-functional-spec.4.4, §GOAL-fresh-metadata).
 
+## On-demand workflows
+
+These have no schedule and run only on `workflow_dispatch`. They are
+investigations rather than gates: nothing they report blocks a release.
+
+### CI-test-all-metadata-crema: Test all metadata on the Crema JVM
+
+Manual dispatch only. Runs the repository's JVM test lane against Crema —
+Native Image's run-time class loading VM — to find where Crema cannot yet run
+real library test suites. It is a bug-finding sweep aimed at Crema, not a
+metadata gate: `metadata/` correctness is not what it measures, and its result
+never blocks a release.
+
+The JDK comes from §CI-setup-crema-jdk. Tests run through the ordinary
+`javaTest` lane (§TCK-test-harness.3) with `GVM_TCK_TEST_JAVA_HOME` pointing at
+that JDK (§TCK-test-harness.3.1), so workers execute on Crema while Gradle keeps
+running on the runner's stock JDK. No Crema-specific JVM flag is ever added: a
+library that fails only because Crema rejects an argument the JVM lane normally
+passes is a finding, not something the workflow works around. JaCoCo is disabled
+via `-PskipJacoco=true` because Crema ignores `-javaagent`, which would otherwise
+publish empty coverage as though it were real.
+
+The `vm` input selects the lane: `crema`, `hotspot`, or `both`. `hotspot` runs
+the identical tree on the identical JDK with the stock VM, and only
+`crema`-fails-while-`hotspot`-passes is reportable — this repository has
+coordinates that fail for environmental reasons under any VM. Failures are
+attributed per coordinate and published as NDJSON plus log artifacts in the same
+shape as §CI-test-all-metadata, so the existing failure tooling applies. The
+matrix comes from `generateMatrixBatchedCoordinates` (§TCK-test-harness.7) via
+the `batches` input; `coordinates` narrows a run to one shard or one library.
+
+Crema currently rejects `-ea` at VM startup, and Gradle puts `-ea` on every test
+worker, so a default run fails every coordinate identically before any test
+executes. The `disable-assertions` input clears Gradle's `enableAssertions`
+(§TCK-test-harness.3.1) so the sweep can reach the failures behind that one. It
+is off by default and a run with it on is bug discovery only: assertions do not
+fire, so tests that verify via `assert` pass vacuously and their results must
+never be read as Crema support.
+
 ## Event-triggered automation
 
 ### CI-triage-new-issues: Triage new issues
@@ -235,6 +274,24 @@ OS/architecture, selected native-image mode, `ci.json`, and TCK build
 logic inputs. The action exports `GVM_TCK_BASE_LAYER_DIR` so subsequent Gradle
 invocations in the manual layered workflow consume the exact cached layer
 directory.
+
+### CI-setup-crema-jdk: setup-crema-jdk action
+
+A composite action that turns a downloaded GraalVM into a Crema JDK. GraalVM
+early-access builds ship the `jvm-library` native-image macro and
+`lib/graalvm/svm-libjvm.jar` but deliberately omit the built library, so the
+action runs `native-image --macro:jvm-library`, which writes `lib/svm/libjvm.so`
+— the Substrate VM with `-H:+RuntimeClassLoading` enabled. All Crema build
+options come from the macro and from `svm-libjvm.jar`'s own
+`native-image.properties`; the action adds none.
+
+It then rewrites `lib/jvm.cfg` to list `-svm` first, making the Substrate VM the
+JDK's default so that a plain `java` invocation is Crema and no caller needs a VM
+selection flag. The original file is kept as `jvm.cfg.hotspot-default` and
+restored when the `default-vm` input is `hotspot`, which yields a byte-identical
+tree running the stock VM — the baseline half of §CI-test-all-metadata-crema.
+The action fails if the macro is absent from the downloaded JDK, because a
+silently-HotSpot run would report a meaningless clean pass.
 
 ## CI-shared-scripts: Shared scripts and test isolation
 

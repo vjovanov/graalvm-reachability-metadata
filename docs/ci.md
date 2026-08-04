@@ -219,12 +219,14 @@ matrix comes from `generateMatrixBatchedCoordinates` (§TCK-test-harness.7) via
 the `batches` input; `coordinates` narrows a run to one shard or one library.
 
 Crema currently rejects `-ea` at VM startup, and Gradle puts `-ea` on every test
-worker, so a default run fails every coordinate identically before any test
-executes. The `disable-assertions` input clears Gradle's `enableAssertions`
-(§TCK-test-harness.3.1) so the sweep can reach the failures behind that one. It
-is off by default and a run with it on is bug discovery only: assertions do not
-fire, so tests that verify via `assert` pass vacuously and their results must
-never be read as Crema support.
+worker, so leaving it in place fails every coordinate identically before any test
+executes and the sweep returns one finding repeated per coordinate instead of a
+survey. The `disable-assertions` input therefore defaults to true, clearing
+Gradle's `enableAssertions` (§TCK-test-harness.3.1) so the sweep reaches the
+failures behind that blocker. Setting it false re-checks whether the blocker is
+still present. Because assertions do not fire under this default, tests that
+verify via `assert` pass vacuously: a green coordinate here means Crema ran the
+code, never that the library is supported.
 
 ## Event-triggered automation
 

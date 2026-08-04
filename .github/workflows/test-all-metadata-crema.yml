@@ -28,13 +28,13 @@ on:
         required: false
         default: "latest-ea"
       disable-assertions:
-        description: "Clear Gradle's default -ea, which Crema currently rejects at VM startup. Off by default; a run with it on is bug discovery, not evidence of support."
+        description: "Clear Gradle's default -ea, which Crema rejects at VM startup. On by default, because with -ea every coordinate fails before any test runs. Set false to confirm that blocker is still present."
         required: false
-        default: "false"
+        default: "true"
         type: choice
         options:
-          - "false"
           - "true"
+          - "false"
 
 permissions:
   contents: read

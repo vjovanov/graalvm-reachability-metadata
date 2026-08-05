@@ -200,10 +200,20 @@ real library test suites. It is a bug-finding sweep aimed at Crema, not a
 metadata gate: `metadata/` correctness is not what it measures, and its result
 never blocks a release.
 
-The JDK comes from §CI-setup-crema-jdk. Tests run through the ordinary
-`javaTest` lane (§TCK-test-harness.3) with `GVM_TCK_TEST_JAVA_HOME` pointing at
-that JDK (§TCK-test-harness.3.1), so workers execute on Crema while Gradle keeps
-running on the runner's stock JDK. No Crema-specific JVM flag is ever added: a
+The JDK is built once by a dedicated job via §CI-setup-crema-jdk and shared with
+every shard as an artifact, because the macro build takes about ten minutes and
+produces the same library every time — building it per shard would spend hours of
+runner time reproducing identical work. Debug info and sources are stripped
+before upload as run-time-irrelevant bulk. A single JDK serves both lanes: the
+action leaves `jvm.cfg.hotspot-default` in the tree next to the Crema-default
+`jvm.cfg`, so a shard selects its VM by choosing between the two files. Each
+shard re-asserts the VM identity after unpacking rather than trusting the build
+job, so an unpack or selection mistake cannot let a shard silently measure the
+wrong VM.
+
+Tests run through the ordinary `javaTest` lane (§TCK-test-harness.3) with
+`GVM_TCK_TEST_JAVA_HOME` pointing at that JDK (§TCK-test-harness.3.1), so workers
+execute on Crema while Gradle keeps running on the runner's stock JDK. No Crema-specific JVM flag is ever added: a
 library that fails only because Crema rejects an argument the JVM lane normally
 passes is a finding, not something the workflow works around. JaCoCo is disabled
 via `-PskipJacoco=true` because Crema ignores `-javaagent`, which would otherwise

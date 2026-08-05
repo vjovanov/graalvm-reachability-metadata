@@ -108,6 +108,34 @@ jobs:
         with:
           persist-credentials: false
 
+      # Every shard resolves the identical build-logic classpath, so without a shared cache the
+      # sweep makes that same burst of Maven Central requests 85 times over and draws HTTP 429.
+      # Resolving it once here and restoring it per shard removes the amplification outright, which
+      # is the cause; the retry in the sweep job only covers the residue.
+      #
+      # This must precede the Crema build: that step makes `-svm` the JDK's default VM, and Gradle
+      # cannot run on Crema.
+      - name: "🔧 Setup the JDK that runs Gradle"
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: 'graalvm'
+          java-version: '25'
+
+      - name: "📦 Cache Gradle modules"
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-crema-gradle-${{ hashFiles('gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties', 'tests/tck-build-logic/**/*.gradle', 'tests/tck-build-logic/build.gradle') }}
+
+      - name: "🔥 Warm the dependency cache"
+        run: |
+          set -euo pipefail
+          # Configuring the root build compiles tck-build-logic, which resolves exactly the
+          # classpath whose 429s failed shards 21 and 72.
+          ./gradlew help --quiet
+
       - name: "🏗️ Build the Crema JDK"
         id: crema
         uses: ./.github/actions/setup-crema-jdk
@@ -150,6 +178,9 @@ jobs:
       LOG_LINES: "300"
     strategy:
       fail-fast: false
+      # Capped below the account's concurrent-job ceiling: the 429s came from the width of the
+      # fan-out, and a weekly sweep can afford wall clock more than it can afford lost shards.
+      max-parallel: 10
       matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
     steps:
       - name: "☁️ Checkout repository"
@@ -178,6 +209,16 @@ jobs:
           systemProp.org.gradle.internal.repository.initial.backoff=3000
           PROPERTIES
           cat "$HOME/.gradle/gradle.properties"
+
+      # Restore-only: the build-jdk job populated and saved this cache, and 85 shards each trying to
+      # save an identical copy would be pure waste.
+      - name: "📦 Restore Gradle modules"
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-crema-gradle-${{ hashFiles('gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties', 'tests/tck-build-logic/**/*.gradle', 'tests/tck-build-logic/build.gradle') }}
 
       - name: "🛠️ Setup latest native-build-tools snapshot"
         uses: ./.github/actions/setup-native-build-tools
@@ -279,16 +320,41 @@ jobs:
               }' >> crema-results/failures.ndjson
           }
 
+          # Both observed 429s killed a shard here, in setup, before a single coordinate ran, costing
+          # every library in the shard. Waiting in minutes suits a rate limiter far better than
+          # Gradle's own seconds-scale backoff. Deliberately not applied to the per-coordinate tests
+          # below: a genuine Crema failure must fail once and fast, not three times slowly.
+          retry_setup() {
+            local attempt
+            for attempt in 1 2 3; do
+              if "$@"; then
+                return 0
+              fi
+              if [[ $attempt -lt 3 ]]; then
+                echo "::warning::Setup command failed (attempt $attempt/3); retrying in $((attempt * 60))s: $*"
+                sleep $((attempt * 60))
+              fi
+            done
+            echo "::error::Setup command failed after 3 attempts: $*"
+            return 1
+          }
+
           # Resolve the shard to concrete coordinates so failures can be attributed per library.
           MATCHING_MATRIX_OUTPUT_FILE="$(mktemp)"
-          GITHUB_OUTPUT="$MATCHING_MATRIX_OUTPUT_FILE" ./gradlew generateMatrixMatchingCoordinates -Pcoordinates="$MATRIX_COORDINATES"
+          GITHUB_OUTPUT="$MATCHING_MATRIX_OUTPUT_FILE" retry_setup ./gradlew generateMatrixMatchingCoordinates -Pcoordinates="$MATRIX_COORDINATES"
           sed -n 's/^matrix=//p' "$MATCHING_MATRIX_OUTPUT_FILE" | jq -r '.coordinates[]' | sort > crema-results/batch-coordinates.txt
           if [[ ! -s crema-results/batch-coordinates.txt ]]; then
             echo "::error::No coordinates were resolved for $MATRIX_COORDINATES"
             exit 1
           fi
 
-          ./gradlew pullAllowedDockerImages -Pcoordinates="$MATRIX_COORDINATES" 2>&1 | tee crema-results/pull-batch.log || true
+          # Stays non-fatal, but retried: a rate-limited pull would otherwise leave the shard's tests
+          # to fail later on missing images, which reads as a Crema failure.
+          pull_images() {
+            ./gradlew pullAllowedDockerImages -Pcoordinates="$MATRIX_COORDINATES" 2>&1 | tee -a crema-results/pull-batch.log
+            return "${PIPESTATUS[0]}"
+          }
+          retry_setup pull_images || true
           bash ./.github/workflows/scripts/disable-docker.sh
 
           # Per coordinate rather than per batch: one library aborting the shard would otherwise hide

@@ -216,14 +216,24 @@ job, so an unpack or selection mistake cannot let a shard silently measure the
 wrong VM.
 
 Shards resolving Maven Central concurrently draw HTTP 429, which fails a shard
-during dependency resolution and loses every coordinate in it. The workflow
-stretches Gradle's retry backoff on both the network-operation and
-module-repository layers, so a rate-limited fetch waits seconds rather than the
-default second. The settings are written to `GRADLE_USER_HOME/gradle.properties`:
-`GRADLE_OPTS` configures the Gradle client JVM while resolution runs in the
-daemon, which does not inherit those properties, and the user-home file is also
-the only one every per-coordinate build reads, each being a separate Gradle build
-rooted in its own directory.
+during dependency resolution and loses every coordinate in it. Four measures
+address it, in order of how directly they attack the cause. The build job
+resolves the build-logic classpath once and shares it as a Gradle module cache,
+so the sweep no longer repeats one identical request burst 85 times; shards
+restore that cache read-only. `max-parallel` caps how many shards resolve at
+once. The shard's setup commands are retried with minute-scale waits, because
+both observed failures struck in setup before any coordinate ran — the
+per-coordinate tests are deliberately *not* retried, so a genuine Crema failure
+fails once and fast. Finally, Gradle's own retry backoff is stretched on both the
+network-operation and module-repository layers, written to
+`GRADLE_USER_HOME/gradle.properties`: `GRADLE_OPTS` configures the Gradle client
+JVM while resolution runs in the daemon, which does not inherit those properties,
+and the user-home file is also the only one every per-coordinate build reads,
+each being a separate Gradle build rooted in its own directory.
+
+A shard lost to rate limiting is never reported as green. Its coordinates went
+untested, and a clean sweep over libraries nobody measured is precisely the
+outcome this workflow's guards exist to prevent.
 
 Tests run through the ordinary `javaTest` lane (§TCK-test-harness.3) with
 `GVM_TCK_TEST_JAVA_HOME` pointing at that JDK (§TCK-test-harness.3.1), so workers

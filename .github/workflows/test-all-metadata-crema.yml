@@ -1,9 +1,13 @@
-# On-demand sweep of the JVM test lane against Crema (Native Image run-time class loading), to find
-# where Crema cannot yet run real library test suites. Bug-finding, not a metadata gate: it never
-# blocks a release. §CI-test-all-metadata-crema; §TCK-test-harness.3.1.
+# Weekly and on-demand sweep of the JVM test lane against Crema (Native Image run-time class
+# loading), to find where Crema cannot yet run real library test suites. Bug-finding, not a metadata
+# gate: it never blocks a release. §CI-test-all-metadata-crema; §TCK-test-harness.3.1.
 name: "Test all metadata on the Crema JVM"
 
 on:
+  # Saturday, clear of the Sunday sweep (§CI-test-all-metadata) and the Monday
+  # release, so the three never compete for runners.
+  schedule:
+    - cron: "0 2 * * 6"
   workflow_dispatch:
     inputs:
       coordinates:
@@ -46,6 +50,10 @@ concurrency:
 jobs:
   prepare:
     name: "📋 Build the sweep matrix"
+    # The weekly run is only meaningful on the canonical repository; forks may still dispatch it by
+    # hand. On a schedule event the `inputs` context is empty, so every input needs its default
+    # restated below or the cron run would resolve to an empty matrix.
+    if: github.event_name != 'schedule' || github.repository == 'oracle/graalvm-reachability-metadata'
     runs-on: "ubuntu-22.04"
     timeout-minutes: 5
     outputs:
@@ -55,8 +63,8 @@ jobs:
         id: set-matrix
         env:
           INPUT_COORDINATES: ${{ inputs.coordinates }}
-          INPUT_BATCHES: ${{ inputs.batches }}
-          INPUT_VM: ${{ inputs.vm }}
+          INPUT_BATCHES: ${{ inputs.batches || '85' }}
+          INPUT_VM: ${{ inputs.vm || 'crema' }}
         run: |
           set -euo pipefail
 
@@ -89,6 +97,7 @@ jobs:
   # Crema-default jvm.cfg, so a shard selects its VM by choosing between them.
   build-jdk:
     name: "🏗️ Build the Crema JDK"
+    if: github.event_name != 'schedule' || github.repository == 'oracle/graalvm-reachability-metadata'
     runs-on: "ubuntu-22.04"
     timeout-minutes: 60
     outputs:
@@ -103,7 +112,7 @@ jobs:
         id: crema
         uses: ./.github/actions/setup-crema-jdk
         with:
-          java-version: ${{ inputs.java-version }}
+          java-version: ${{ inputs.java-version || 'latest-ea' }}
           default-vm: "svm"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -217,7 +226,7 @@ jobs:
         env:
           # §TCK-test-harness.3.1 — selects the test workers' interpreter, adds no flag.
           GVM_TCK_TEST_JAVA_HOME: ${{ steps.crema.outputs.crema-home }}
-          GVM_TCK_TEST_DISABLE_ASSERTIONS: ${{ inputs.disable-assertions }}
+          GVM_TCK_TEST_DISABLE_ASSERTIONS: ${{ inputs.disable-assertions || 'true' }}
           MATRIX_COORDINATES: ${{ matrix.coordinates }}
           MATRIX_VM: ${{ matrix.vm }}
         run: |
@@ -238,7 +247,7 @@ jobs:
             jq -c -n \
               --arg name "${coordinates%:*}" \
               --arg vm "$MATRIX_VM" \
-              --arg jdk "${{ inputs.java-version }}" \
+              --arg jdk "${{ inputs.java-version || 'latest-ea' }}" \
               --arg runnerLogUrl "$RUNNER_LOG_URL" \
               --arg failureType "$failure_type" \
               --arg failedVersion "${coordinates##*:}" \

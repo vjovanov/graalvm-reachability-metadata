@@ -187,18 +187,22 @@ version `SNAPSHOT`, deletes the previous snapshot release/tag when present,
 force-pushes a fresh `SNAPSHOT` tag, and marks the release as not GitHub's
 Latest release (§FS-repository-functional-spec.4.4, §GOAL-fresh-metadata).
 
-## On-demand workflows
-
-These have no schedule and run only on `workflow_dispatch`. They are
-investigations rather than gates: nothing they report blocks a release.
-
 ### CI-test-all-metadata-crema: Test all metadata on the Crema JVM
 
-Manual dispatch only. Runs the repository's JVM test lane against Crema —
-Native Image's run-time class loading VM — to find where Crema cannot yet run
-real library test suites. It is a bug-finding sweep aimed at Crema, not a
-metadata gate: `metadata/` correctness is not what it measures, and its result
-never blocks a release.
+Every Saturday (`0 2 * * 6`) and on manual dispatch. Runs the repository's JVM
+test lane against Crema — Native Image's run-time class loading VM — to find
+where Crema cannot yet run real library test suites. It is a bug-finding sweep
+aimed at Crema, not a metadata gate: `metadata/` correctness is not what it
+measures, and its result never blocks a release. Saturday keeps it clear of the
+Sunday metadata sweep (§CI-test-all-metadata) and the Monday release
+(§CI-create-scheduled-release) so the three never compete for runners.
+
+The scheduled run takes every input's default — all coordinates over 85 shards on
+the `crema` lane with assertions cleared — because the `inputs` context is empty
+on a `schedule` event; the workflow restates each default rather than resolving
+an empty matrix. The weekly trigger is confined to the canonical repository so a
+fork does not sweep on its own schedule, while manual dispatch stays available
+everywhere.
 
 The JDK is built once by a dedicated job via §CI-setup-crema-jdk and shared with
 every shard as an artifact, because the macro build takes about ten minutes and
@@ -245,6 +249,7 @@ failures behind that blocker. Setting it false re-checks whether the blocker is
 still present. Because assertions do not fire under this default, tests that
 verify via `assert` pass vacuously: a green coordinate here means Crema ran the
 code, never that the library is supported.
+
 
 ## Event-triggered automation
 

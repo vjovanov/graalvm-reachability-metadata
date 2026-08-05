@@ -218,10 +218,12 @@ wrong VM.
 Shards resolving Maven Central concurrently draw HTTP 429, which fails a shard
 during dependency resolution and loses every coordinate in it. The workflow
 stretches Gradle's retry backoff on both the network-operation and
-module-repository layers via `GRADLE_OPTS`, so a rate-limited fetch waits seconds
-rather than the sub-second default. It is set in the environment rather than
-`gradle.properties` because each coordinate is a separate Gradle build rooted in
-its own directory and never reads the repository root's properties.
+module-repository layers, so a rate-limited fetch waits seconds rather than the
+default second. The settings are written to `GRADLE_USER_HOME/gradle.properties`:
+`GRADLE_OPTS` configures the Gradle client JVM while resolution runs in the
+daemon, which does not inherit those properties, and the user-home file is also
+the only one every per-coordinate build reads, each being a separate Gradle build
+rooted in its own directory.
 
 Tests run through the ordinary `javaTest` lane (§TCK-test-harness.3) with
 `GVM_TCK_TEST_JAVA_HOME` pointing at that JDK (§TCK-test-harness.3.1), so workers

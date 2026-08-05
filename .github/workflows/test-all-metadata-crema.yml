@@ -148,18 +148,6 @@ jobs:
       contents: read
     env:
       LOG_LINES: "300"
-      # Many shards resolving Maven Central at once draws HTTP 429, which fails a whole shard during
-      # dependency resolution and costs every coordinate behind it. Gradle retries such failures on
-      # two independent layers, each with its own properties and both defaulting to 3 attempts and a
-      # 1s initial backoff that doubles — too impatient for a rate limit that wants seconds. Both are
-      # stretched here. Set via GRADLE_OPTS rather than gradle.properties because each coordinate is
-      # a separate Gradle build rooted in its own directory, which never reads the repository root's
-      # gradle.properties; the environment reaches all of them.
-      GRADLE_OPTS: >-
-        -Dorg.gradle.internal.network.retry.max.attempts=5
-        -Dorg.gradle.internal.network.retry.initial.backOff=2000
-        -Dorg.gradle.internal.repository.max.tentatives=3
-        -Dorg.gradle.internal.repository.initial.backoff=3000
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
@@ -168,6 +156,28 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
+
+      # Shards resolving Maven Central concurrently draw HTTP 429, which fails a shard during
+      # dependency resolution and loses every coordinate in it. Gradle retries such failures on two
+      # independent layers, both defaulting to 3 attempts and a 1s backoff that doubles — too
+      # impatient for a rate limit that wants seconds.
+      #
+      # These must live in GRADLE_USER_HOME/gradle.properties, not GRADLE_OPTS: GRADLE_OPTS
+      # configures the Gradle *client* JVM, while resolution runs in the daemon, which does not
+      # inherit those properties (measured — the settings had no effect and no retry ever logged).
+      # The user-home file also reaches the per-coordinate builds, which are separate Gradle builds
+      # rooted in their own directories and never read the repository root's gradle.properties.
+      - name: "🔧 Configure Gradle dependency-resolution backoff"
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.gradle"
+          cat >> "$HOME/.gradle/gradle.properties" <<'PROPERTIES'
+          systemProp.org.gradle.internal.network.retry.max.attempts=5
+          systemProp.org.gradle.internal.network.retry.initial.backOff=2000
+          systemProp.org.gradle.internal.repository.max.tentatives=3
+          systemProp.org.gradle.internal.repository.initial.backoff=3000
+          PROPERTIES
+          cat "$HOME/.gradle/gradle.properties"
 
       - name: "🛠️ Setup latest native-build-tools snapshot"
         uses: ./.github/actions/setup-native-build-tools

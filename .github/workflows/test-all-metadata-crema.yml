@@ -139,6 +139,18 @@ jobs:
       contents: read
     env:
       LOG_LINES: "300"
+      # Many shards resolving Maven Central at once draws HTTP 429, which fails a whole shard during
+      # dependency resolution and costs every coordinate behind it. Gradle retries such failures on
+      # two independent layers, each with its own properties and both defaulting to 3 attempts and a
+      # 1s initial backoff that doubles — too impatient for a rate limit that wants seconds. Both are
+      # stretched here. Set via GRADLE_OPTS rather than gradle.properties because each coordinate is
+      # a separate Gradle build rooted in its own directory, which never reads the repository root's
+      # gradle.properties; the environment reaches all of them.
+      GRADLE_OPTS: >-
+        -Dorg.gradle.internal.network.retry.max.attempts=5
+        -Dorg.gradle.internal.network.retry.initial.backOff=2000
+        -Dorg.gradle.internal.repository.max.tentatives=3
+        -Dorg.gradle.internal.repository.initial.backoff=3000
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
